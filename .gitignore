@@ -1,0 +1,7 @@
+node_modules/
+data/
+.env
+dist/
+build/
+frontend/.next/
+frontend/node_modules/

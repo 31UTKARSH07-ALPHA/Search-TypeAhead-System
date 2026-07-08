@@ -1,0 +1,36 @@
+Phase 2.3 index verification
+
+Dataset row count loaded locally:
+150000
+
+Representative prefix query:
+EXPLAIN ANALYZE
+SELECT query, count, recent_count, last_seen
+FROM queries
+WHERE query LIKE 'amos%'
+ORDER BY count DESC
+LIMIT 10;
+
+Observed plan summary:
+- Index Scan using idx_queries_prefix on queries
+- Index Cond: query >= 'amos' and query < 'amot'
+- Rows scanned by prefix index: 50
+- Execution Time: 0.147 ms
+
+Representative results:
+amos yee | 9
+amos (prophet) | 5
+amos 'n' andy | 2
+amos kipruto | 2
+amos garrett | 2
+amos tversky | 2
+amos alonzo stagg | 2
+amos bartelsmeyer | 2
+amos a. phelps | 1
+amos (satellite) | 1
+
+Note:
+For very common prefixes such as 'ann%' and '2026%', Postgres may choose
+idx_queries_count_desc because it can satisfy ORDER BY count DESC LIMIT 10
+quickly and filter rows. For selective prefixes, the text_pattern_ops prefix
+index is used directly.

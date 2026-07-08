@@ -1,0 +1,25 @@
+{
+  "name": "@typeahead/suggestion-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "index:build": "node dist/index-builder/index.js",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@typeahead/shared-types": "file:../../packages/shared-types",
+    "express": "^4.19.2",
+    "ioredis": "^5.11.1",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.10",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}

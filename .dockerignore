@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+.next
+coverage
+.git
+.env
+.env.*
+data/raw
+data/processed
+ARCHITECURE.md
+CHANGES.md
+IMPLEMENTATION.md
+PROBLEM.md
+STACK.md

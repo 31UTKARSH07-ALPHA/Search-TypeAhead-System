@@ -1,0 +1,29 @@
+{
+  "name": "search-typeahead-system",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dataset:load": "tsx db/scripts/load-wikimedia-pageviews.ts",
+    "dataset:inspect:orcas": "tsx db/scripts/load-orcas.ts inspect",
+    "dataset:load:orcas": "tsx db/scripts/load-orcas.ts load",
+    "dev:search": "npm run dev --workspace @typeahead/search-service",
+    "dev:suggestion": "npm run dev --workspace @typeahead/suggestion-service",
+    "dev:batch": "npm run dev --workspace @typeahead/batch-worker"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.22.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
