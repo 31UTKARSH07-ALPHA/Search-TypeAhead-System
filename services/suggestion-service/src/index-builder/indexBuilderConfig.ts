@@ -9,6 +9,8 @@ export interface IndexBuilderConfig {
   maxPrefixLength: number;
   candidatesPerPrefix: number;
   sourceRowLimit: number;
+  recentWindowHours: number;
+  recentRowLimit: number;
   writeBatchSize: number;
   // Optional safety net; old versions are normally removed explicitly after each publish.
   indexEntryTtlSeconds: number | undefined;
@@ -41,6 +43,8 @@ export function readIndexBuilderConfig(): IndexBuilderConfig {
     maxPrefixLength: readPositiveInteger("INDEX_MAX_PREFIX_LENGTH", 50),
     candidatesPerPrefix: readPositiveInteger("INDEX_CANDIDATES_PER_PREFIX", 10),
     sourceRowLimit: readPositiveInteger("INDEX_SOURCE_ROW_LIMIT", 100000),
+    recentWindowHours: readPositiveInteger("INDEX_RECENT_WINDOW_HOURS", 24),
+    recentRowLimit: readPositiveInteger("INDEX_RECENT_ROW_LIMIT", 50000),
     writeBatchSize: readPositiveInteger("INDEX_WRITE_BATCH_SIZE", 500),
     indexEntryTtlSeconds,
     rebuildIntervalSeconds

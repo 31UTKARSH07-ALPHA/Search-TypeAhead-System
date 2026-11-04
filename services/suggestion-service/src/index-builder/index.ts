@@ -64,7 +64,11 @@ async function buildAndPublishIndex(
   cacheKeyBuilder: SuggestionCacheKeyBuilder
 ): Promise<void> {
   const indexVersion = createIndexVersion();
-  const candidates = await querySourceRepository.findTopQueries(config.sourceRowLimit);
+  const candidates = await querySourceRepository.findIndexSourceQueries({
+    topLimit: config.sourceRowLimit,
+    recentWindowHours: config.recentWindowHours,
+    recentLimit: config.recentRowLimit
+  });
   const prefixEntriesByPrefix = new PrefixIndexBuilder({
     minPrefixLength: config.minPrefixLength,
     maxPrefixLength: config.maxPrefixLength,

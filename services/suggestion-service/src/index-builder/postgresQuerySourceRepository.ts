@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import type { SuggestionCandidate } from "@typeahead/shared-types";
-import type { QuerySourceRepository } from "./querySourceRepository.js";
+import type { IndexSourceOptions, QuerySourceRepository } from "./querySourceRepository.js";
 
 interface QueryRow {
   query: string;
@@ -16,15 +16,28 @@ export class PostgresQuerySourceRepository implements QuerySourceRepository {
     this.pool = new Pool({ connectionString: databaseUrl });
   }
 
-  public async findTopQueries(limit: number): Promise<SuggestionCandidate[]> {
+  // Top queries by all-time count, plus anything searched recently. Without the second half a new
+  // query can't enter the index until its all-time count beats the top-N cutoff, so recency
+  // ranking never sees fresh queries. UNION drops rows that appear in both lists.
+  public async findIndexSourceQueries(options: IndexSourceOptions): Promise<SuggestionCandidate[]> {
     const result = await this.pool.query<QueryRow>(
       `
-        SELECT query, count, recent_count, last_seen
-        FROM queries
-        ORDER BY count DESC, query ASC
-        LIMIT $1
+        (
+          SELECT query, count, recent_count, last_seen
+          FROM queries
+          ORDER BY count DESC, query ASC
+          LIMIT $1
+        )
+        UNION
+        (
+          SELECT query, count, recent_count, last_seen
+          FROM queries
+          WHERE last_seen >= NOW() - make_interval(hours => $2)
+          ORDER BY last_seen DESC
+          LIMIT $3
+        )
       `,
-      [limit]
+      [options.topLimit, options.recentWindowHours, options.recentLimit]
     );
 
     return result.rows.map((row) => ({
