@@ -125,6 +125,33 @@ export class RedisClusterClient implements SuggestionCacheRepository {
     return written;
   }
 
+  // Removes suggestion keys from every index version except `keepVersion`, including partial
+  // versions left behind by a crashed build. SCAN runs per master because each owns its own slots.
+  public async deleteIndexVersionsExcept(keepVersion: string): Promise<number> {
+    let deleted = 0;
+
+    for (const node of this.cluster.nodes("master")) {
+      const stream = node.scanStream({ match: "{*}:suggest:*", count: 1000 });
+
+      for await (const keys of stream as AsyncIterable<string[]>) {
+        const staleKeys = keys.filter((key) => key.split(":")[2] !== keepVersion);
+        if (staleKeys.length === 0) {
+          continue;
+        }
+
+        // One UNLINK per key: keys from different hash tags can't share a multi-key command.
+        const pipeline = node.pipeline();
+        for (const key of staleKeys) {
+          pipeline.unlink(key);
+        }
+        await pipeline.exec();
+        deleted += staleKeys.length;
+      }
+    }
+
+    return deleted;
+  }
+
   public async exists(cacheKey: string): Promise<boolean> {
     return (await this.cluster.exists(cacheKey)) === 1;
   }
