@@ -1,7 +1,10 @@
 import express, { type Request, type Response } from "express";
 import type { HealthResponse, SearchEvent } from "@typeahead/shared-types";
 import { SearchBatchFlusher } from "./aggregation/searchBatchFlusher.js";
-import { SearchAggregationBuffer } from "./aggregation/searchAggregationBuffer.js";
+import {
+  SearchAggregationBuffer,
+  type SearchEventOffset
+} from "./aggregation/searchAggregationBuffer.js";
 import { readConfig } from "./config.js";
 import { KafkaSearchEventConsumer } from "./messaging/kafkaSearchEventConsumer.js";
 import { PostgresQueryCountRepository } from "./repositories/postgresQueryCountRepository.js";
@@ -15,10 +18,15 @@ const searchEventConsumer = new KafkaSearchEventConsumer({
 });
 const searchAggregationBuffer = new SearchAggregationBuffer();
 const queryCountRepository = new PostgresQueryCountRepository(config.databaseUrl);
-const searchBatchFlusher = new SearchBatchFlusher(searchAggregationBuffer, queryCountRepository, {
-  flushIntervalMs: config.flushIntervalMs,
-  flushMaxUniqueQueries: config.flushMaxUniqueQueries
-});
+const searchBatchFlusher = new SearchBatchFlusher(
+  searchAggregationBuffer,
+  queryCountRepository,
+  searchEventConsumer,
+  {
+    flushIntervalMs: config.flushIntervalMs,
+    flushMaxUniqueQueries: config.flushMaxUniqueQueries
+  }
+);
 
 app.use(express.json());
 
@@ -31,14 +39,16 @@ app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json(response);
 });
 
-function bufferSearchEvent(event: SearchEvent) {
-  searchAggregationBuffer.add(event);
+function bufferSearchEvent(event: SearchEvent, position: SearchEventOffset) {
+  searchAggregationBuffer.add(event, position);
   searchBatchFlusher.flushIfThresholdReached();
 }
 
 async function start() {
   await searchEventConsumer.connect();
-  await searchEventConsumer.consume(bufferSearchEvent);
+  await searchEventConsumer.consume(bufferSearchEvent, (position) =>
+    searchAggregationBuffer.trackOffset(position)
+  );
   searchBatchFlusher.start();
 
   const server = app.listen(config.port, () => {

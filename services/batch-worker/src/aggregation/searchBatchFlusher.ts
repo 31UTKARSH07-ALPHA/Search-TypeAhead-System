@@ -1,4 +1,4 @@
-import type { SearchAggregationBuffer } from "./searchAggregationBuffer.js";
+import type { SearchAggregationBuffer, SearchEventOffset } from "./searchAggregationBuffer.js";
 import type { QueryCountRepository } from "../repositories/queryCountRepository.js";
 
 type FlushTrigger = "timer" | "size" | "shutdown";
@@ -8,6 +8,10 @@ export interface SearchBatchFlusherOptions {
   flushMaxUniqueQueries: number;
 }
 
+export interface OffsetCommitter {
+  commitOffsets(offsets: SearchEventOffset[]): Promise<void>;
+}
+
 export class SearchBatchFlusher {
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private isFlushing = false;
@@ -15,6 +19,7 @@ export class SearchBatchFlusher {
   public constructor(
     private readonly buffer: SearchAggregationBuffer,
     private readonly repository: QueryCountRepository,
+    private readonly offsetCommitter: OffsetCommitter,
     private readonly options: SearchBatchFlusherOptions
   ) {}
 
@@ -54,8 +59,20 @@ export class SearchBatchFlusher {
 
     this.isFlushing = true;
 
+    let upsertCount: number;
     try {
-      const upsertCount = await this.repository.upsertCounts(batch.searches);
+      upsertCount = await this.repository.upsertCounts(batch.searches);
+    } catch (error) {
+      this.buffer.restore(batch);
+      console.error("Failed to flush search batch", error);
+      this.isFlushing = false;
+      return;
+    }
+
+    try {
+      // Commit only after Postgres has the counts. If this commit fails the events are replayed
+      // and counted twice (at-least-once) — but never lost. Not restored: Postgres already has them.
+      await this.offsetCommitter.commitOffsets(batch.offsets);
       console.log(
         JSON.stringify({
           message: "Flushed search batch",
@@ -68,8 +85,7 @@ export class SearchBatchFlusher {
         })
       );
     } catch (error) {
-      this.buffer.restore(batch);
-      console.error("Failed to flush search batch", error);
+      console.error("Persisted search batch but failed to commit Kafka offsets", error);
     } finally {
       this.isFlushing = false;
     }

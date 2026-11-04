@@ -1,5 +1,6 @@
 import { Kafka, logLevel, type Consumer } from "kafkajs";
 import type { SearchEvent } from "@typeahead/shared-types";
+import type { SearchEventOffset } from "../aggregation/searchAggregationBuffer.js";
 
 export interface KafkaSearchEventConsumerOptions {
   brokers: string[];
@@ -31,18 +32,41 @@ export class KafkaSearchEventConsumer {
     });
   }
 
-  public async consume(handleEvent: (event: SearchEvent) => void): Promise<void> {
+  // Auto-commit is off: events only live in the in-memory buffer until a flush, so offsets are
+  // committed by commitOffsets() after the batch reaches Postgres. A crash before that replays them.
+  public async consume(
+    handleEvent: (event: SearchEvent, position: SearchEventOffset) => void,
+    handleSkipped: (position: SearchEventOffset) => void
+  ): Promise<void> {
     await this.consumer.run({
-      eachMessage: async ({ message }) => {
+      autoCommit: false,
+      eachMessage: async ({ partition, message }) => {
+        const position = { partition, offset: message.offset };
         const event = parseSearchEvent(message.value?.toString());
         if (!event) {
           console.warn("Skipping malformed search event");
+          handleSkipped(position);
           return;
         }
 
-        handleEvent(event);
+        handleEvent(event, position);
       }
     });
+  }
+
+  public async commitOffsets(offsets: SearchEventOffset[]): Promise<void> {
+    if (offsets.length === 0) {
+      return;
+    }
+
+    // Kafka stores the offset of the *next* message to read, hence +1.
+    await this.consumer.commitOffsets(
+      offsets.map(({ partition, offset }) => ({
+        topic: this.options.topic,
+        partition,
+        offset: (BigInt(offset) + 1n).toString()
+      }))
+    );
   }
 
   public async close(): Promise<void> {
