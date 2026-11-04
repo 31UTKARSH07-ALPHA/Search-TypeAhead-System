@@ -11,7 +11,7 @@ services:
       batch-worker:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "8081:80"
     volumes:
       - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
 
@@ -22,7 +22,7 @@ services:
     environment:
       NODE_ENV: production
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
   search-service:
     build:
